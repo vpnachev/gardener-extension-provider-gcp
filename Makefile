@@ -23,6 +23,7 @@ VERSION                     := $(shell cat "$(REPO_ROOT)/VERSION")
 EFFECTIVE_VERSION           := $(VERSION)-$(shell git rev-parse HEAD)
 LD_FLAGS                    := "-w $(shell $(REPO_ROOT)/vendor/github.com/gardener/gardener/hack/get-build-ld-flags.sh k8s.io/component-base $(REPO_ROOT)/VERSION $(EXTENSION_PREFIX))"
 LEADER_ELECTION             := false
+LEADER_ELECTION_NAMESPACE   := garden
 IGNORE_OPERATION_ANNOTATION := true
 
 WEBHOOK_CONFIG_PORT	:= 8443

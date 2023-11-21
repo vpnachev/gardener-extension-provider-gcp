@@ -28,19 +28,19 @@ checkPrereqs() {
 }
 
 createOrUpdateWebhookSVC(){
-namespace=${1:-}
-[[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
+  namespace=${1:-}
+  [[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
 
-serviceName=${2:-}
-[[ -z $serviceName ]] && echo "Please specify the service name (gardener-extension-provider-{aws,gcp,azure},..etc.)!" && exit 1
+  serviceName=${2:-}
+  [[ -z $serviceName ]] && echo "Please specify the service name (gardener-extension-provider-{aws,gcp,azure},..etc.)!" && exit 1
 
-local quicServerPort=${3:-}
-[[ -z $quicServerPort ]] && echo "Please specify the quic pod server port!" && exit 1
+  local quicServerPort=${3:-}
+  [[ -z $quicServerPort ]] && echo "Please specify the quic pod server port!" && exit 1
 
-tmpService=$(mktemp)
-kubectl get svc $serviceName -o yaml > $tmpService
+  tmpService=$(mktemp)
+  kubectl get svc $serviceName -o yaml > $tmpService
 
-    cat <<EOF | kubectl apply -f -
+  cat <<EOF | kubectl apply -f -
 ---
 apiVersion: v1
 kind: Service
@@ -48,6 +48,7 @@ metadata:
   labels:
     app: $serviceName
     app.kubernetes.io/instance: $serviceName
+    networking.resources.gardener.cloud/from-world-to-ports: '[{"protocol":"TCP","port": "$quicServerPort"}]'
     app.kubernetes.io/name: $serviceName
   name: $serviceName
   namespace: $namespace
@@ -65,20 +66,46 @@ EOF
 }
 
 
+createNetworkPolocy(){
+  namespace=${1:-}
+  [[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
+
+  cat <<EOF | kubectl apply -f -
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-network-traffic
+  namespace: $namespace
+spec:
+  podSelector: {}
+  ingress:
+  - {}
+  egress:
+  - {}
+  policyTypes:
+  - Ingress
+  - Egress
+EOF
+
+}
+
 createQuicLB(){
-namespace=${1:-}
-[[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
+  namespace=${1:-}
+  [[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
 
-local quicTunnelPort=${2:-}
-[[ -z $quicTunnelPort ]] && echo "Please specify the quic pod tunnel port!" && exit 1
+  local quicTunnelPort=${2:-}
+  [[ -z $quicTunnelPort ]] && echo "Please specify the quic pod tunnel port!" && exit 1
 
-cat <<EOF | kubectl apply -f -
+  cat <<EOF | kubectl apply -f -
 ---
 apiVersion: v1
 kind: Service
 metadata:
   labels:
     app: quic-lb
+  annotations:
+    networking.resources.gardener.cloud/from-world-to-ports: '[{"protocol":"UDP","port": "$quicTunnelPort"}]'
   name: quic-lb
   namespace: $namespace
 spec:
@@ -119,19 +146,19 @@ waitForQuicLBToBeReady(){
 }
 
 createServerDeploy(){
-namespace=${1:-}
-[[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
+  namespace=${1:-}
+  [[ -z $namespace ]] && echo "Please specify extension namespace!" && exit 1
 
-serviceName=${2:-}
-[[ -z $serviceName ]] && echo "Please specify the service name (gardener-extension-provider-{aws,gcp,azure},..etc.)!" && exit 1
+  serviceName=${2:-}
+  [[ -z $serviceName ]] && echo "Please specify the service name (gardener-extension-provider-{aws,gcp,azure},..etc.)!" && exit 1
 
-local quicServerPort=${3:-}
-[[ -z $quicServerPort ]] && echo "Please specify the quic pod server port!" && exit 1
+  local quicServerPort=${3:-}
+  [[ -z $quicServerPort ]] && echo "Please specify the quic pod server port!" && exit 1
 
-local quicTunnelPort=${4:-}
-[[ -z $quicTunnelPort ]] && echo "Please specify the quic pod tunnel port!" && exit 1
+  local quicTunnelPort=${4:-}
+  [[ -z $quicTunnelPort ]] && echo "Please specify the quic pod tunnel port!" && exit 1
 
-cat <<EOF | kubectl apply -f -
+  cat <<EOF | kubectl apply -f -
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -310,6 +337,8 @@ cleanUP() {
 
    echo "Deleting the quic certs..."
    kubectl -n $namespace delete  secret/quic-tunnel-certs
+   echo "Deleting the network policy..."
+   kubectl -n $namespace delete networkpolicy/allow-all-network-traffic
 
    echo "Re-applying old service values..."
    kubectl apply -f $tmpService
@@ -380,6 +409,9 @@ if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
 
             echo "[STEP 2] Creating Quic LB Service..!"
             createQuicLB $namespace $quicTunnelPort && sleep 2s
+
+            echo "[STEP 2.1] Creating the network policy..."
+            createNetworkPolocy $namespace && sleep 1s
 
             echo "[STEP 3] Waiting for Quic LB Service to be created..!";
             output=$(waitForQuicLBToBeReady $namespace $serviceName)

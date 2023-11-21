@@ -18,6 +18,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"strings"
 
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	corev1 "k8s.io/api/core/v1"
@@ -59,22 +61,47 @@ func GetServiceAccountFromSecret(secret *corev1.Secret) (*ServiceAccount, error)
 // GetServiceAccountFromJSON returns a ServiceAccount from the given
 func GetServiceAccountFromJSON(data []byte) (*ServiceAccount, error) {
 	var serviceAccount struct {
-		ProjectID string `json:"project_id"`
-		Email     string `json:"client_email"`
-		Type      string `json:"type"`
+		ProjectID        string `json:"project_id"`
+		Email            string `json:"client_email"`
+		Type             string `json:"type"`
+		impersonationURL string `json:"service_account_impersonation_url"`
 	}
 
 	if err := json.Unmarshal(data, &serviceAccount); err != nil {
 		return nil, err
 	}
-	if serviceAccount.ProjectID == "" {
-		return nil, fmt.Errorf("no service account specified")
+	var (
+		projectID = serviceAccount.ProjectID
+		email     = serviceAccount.Email
+	)
+	if projectID == "" {
+		u, err := url.Parse(serviceAccount.impersonationURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse impersonation URL, %+w", err)
+		}
+
+		paths := strings.Split(u.Path, "/")
+		projectURL := paths[len(paths)-1]
+		projectURLParts := strings.FieldsFunc(
+			projectURL,
+			func(c rune) bool { return c == rune('@') || c == rune(':') },
+		)
+
+		projectHost := projectURLParts[1]
+		projectID = strings.Split(projectHost, ".")[0]
+
+		if projectID == "" {
+			return nil, fmt.Errorf("no service account specified")
+		}
+		if email == "" {
+			email = projectURLParts[0] + "@" + projectURLParts[1]
+		}
 	}
 
 	return &ServiceAccount{
 		Raw:       data,
-		ProjectID: serviceAccount.ProjectID,
-		Email:     serviceAccount.Email,
+		ProjectID: projectID,
+		Email:     email,
 		Type:      serviceAccount.Type,
 	}, nil
 }
