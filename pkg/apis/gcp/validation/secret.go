@@ -32,7 +32,7 @@ func ValidateCloudProviderSecret(secret *corev1.Secret) error {
 		return fmt.Errorf("missing %q field in secret", gcp.ServiceAccountJSONField)
 	}
 
-	sa, err := gcp.GetServiceAccountFromJSON(serviceAccountJSON)
+	sa, err := gcp.GetServiceAccountFromJSON(serviceAccountJSON, nil)
 	if err != nil {
 		return err
 	}

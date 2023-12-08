@@ -24,12 +24,17 @@ import (
 	extensionscontroller "github.com/gardener/gardener/extensions/pkg/controller"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // ServiceAccount represents a GCP service account.
 type ServiceAccount struct {
 	// Raw is the raw representation of the GCP service account.
 	Raw []byte
+	// Token is ID token for federated authentication
+	Token []byte
+	// TokenFilePath is the path to the file where the token is stored.
+	TokenFilePath string
 	// ProjectID is the project id the service account is associated to.
 	ProjectID string
 	// Email is the email associated with the service account.
@@ -55,16 +60,25 @@ func GetServiceAccountFromSecret(secret *corev1.Secret) (*ServiceAccount, error)
 		return nil, fmt.Errorf("secret %s/%s doesn't have a service account json (expected field: %q)", secret.Namespace, secret.Name, ServiceAccountJSONField)
 	}
 
-	return GetServiceAccountFromJSON(data)
+	token, ok := secret.Data["token"]
+	if !ok {
+		log.Log.Info("secret %s/%s have no token", secret.Namespace, secret.Name)
+	}
+
+	return GetServiceAccountFromJSON(data, token)
 }
 
 // GetServiceAccountFromJSON returns a ServiceAccount from the given
-func GetServiceAccountFromJSON(data []byte) (*ServiceAccount, error) {
+func GetServiceAccountFromJSON(data, token []byte) (*ServiceAccount, error) {
+	type credentialSource struct {
+		File string `json:"file"`
+	}
 	var serviceAccount struct {
-		ProjectID        string `json:"project_id"`
-		Email            string `json:"client_email"`
-		Type             string `json:"type"`
-		impersonationURL string `json:"service_account_impersonation_url"`
+		ProjectID         string           `json:"project_id"`
+		Email             string           `json:"client_email"`
+		Type              string           `json:"type"`
+		ImpersonationURL  string           `json:"service_account_impersonation_url"`
+		CredentialsSource credentialSource `json:"credentials_source"`
 	}
 
 	if err := json.Unmarshal(data, &serviceAccount); err != nil {
@@ -75,7 +89,7 @@ func GetServiceAccountFromJSON(data []byte) (*ServiceAccount, error) {
 		email     = serviceAccount.Email
 	)
 	if projectID == "" {
-		u, err := url.Parse(serviceAccount.impersonationURL)
+		u, err := url.Parse(serviceAccount.ImpersonationURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse impersonation URL, %+w", err)
 		}
@@ -98,12 +112,19 @@ func GetServiceAccountFromJSON(data []byte) (*ServiceAccount, error) {
 		}
 	}
 
-	return &ServiceAccount{
+	sa := &ServiceAccount{
 		Raw:       data,
 		ProjectID: projectID,
 		Email:     email,
 		Type:      serviceAccount.Type,
-	}, nil
+		Token:     token,
+	}
+
+	if serviceAccount.Type == "external_account" {
+		sa.TokenFilePath = serviceAccount.CredentialsSource.File
+	}
+
+	return sa, nil
 }
 
 // readServiceAccountSecret reads the ServiceAccount from the given secret.
@@ -118,7 +139,7 @@ func readServiceAccountSecret(secret *corev1.Secret) ([]byte, error) {
 
 // ExtractServiceAccountProjectID extracts the project id from the given service account JSON.
 func ExtractServiceAccountProjectID(serviceAccountJSON []byte) (string, error) {
-	sa, err := GetServiceAccountFromJSON(serviceAccountJSON)
+	sa, err := GetServiceAccountFromJSON(serviceAccountJSON, nil)
 	if err != nil {
 		return "", err
 	}

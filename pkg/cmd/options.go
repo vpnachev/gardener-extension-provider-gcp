@@ -41,6 +41,7 @@ import (
 	controlplaneexposurewebhook "github.com/gardener/gardener-extension-provider-gcp/pkg/webhook/controlplaneexposure"
 	infrastructurewebhook "github.com/gardener/gardener-extension-provider-gcp/pkg/webhook/infrastructure"
 	shootwebhook "github.com/gardener/gardener-extension-provider-gcp/pkg/webhook/shoot"
+	terraformerwebhook "github.com/gardener/gardener-extension-provider-gcp/pkg/webhook/terraformer"
 )
 
 // ControllerSwitchOptions are the controllercmd.SwitchOptions for the provider controllers.
@@ -64,6 +65,7 @@ func WebhookSwitchOptions() *webhookcmd.SwitchOptions {
 		webhookcmd.Switch(extensioncontrolplanewebhook.WebhookName, controlplanewebhook.New),
 		webhookcmd.Switch(extensioncontrolplanewebhook.ExposureWebhookName, controlplaneexposurewebhook.New),
 		webhookcmd.Switch(infrastructurewebhook.WebhookName, infrastructurewebhook.AddToManager),
+		webhookcmd.Switch(terraformerwebhook.WebhookName, terraformerwebhook.AddToManager),
 		webhookcmd.Switch(extensionshootwebhook.WebhookName, shootwebhook.AddToManager),
 	)
 }

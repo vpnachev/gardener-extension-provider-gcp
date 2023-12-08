@@ -17,6 +17,7 @@ package client
 import (
 	"context"
 	"net/http"
+	"os"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -90,12 +91,20 @@ type computeClient struct {
 // Delete operations will ignore errors when the respective resource can not be found, meaning that the Delete operations will never return HTTP 404 errors.
 // Update operations will ignore errors when the update operation is a no-op, meaning that Update operations will ignore HTTP 304 errors.
 func NewComputeClient(ctx context.Context, serviceAccount *gcp.ServiceAccount) (ComputeClient, error) {
-	jwt, err := google.JWTConfigFromJSON(serviceAccount.Raw, compute.ComputeScope)
+	// TODO(vpnachev): need to
+	// 1. create a temporary file
+	// 2. dump the token in this file
+	// 3. patch "credential_source.file" with the path to this token
+
+	if serviceAccount.TokenFilePath != "" {
+		os.WriteFile(serviceAccount.TokenFilePath, serviceAccount.Token, os.ModeAppend)
+	}
+	creds, err := google.CredentialsFromJSONWithParams(ctx, serviceAccount.Raw, google.CredentialsParams{})
 	if err != nil {
 		return nil, err
 	}
 
-	httpClient := oauth2.NewClient(ctx, jwt.TokenSource(ctx))
+	httpClient := oauth2.NewClient(ctx, creds.TokenSource)
 	service, err := compute.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, err
