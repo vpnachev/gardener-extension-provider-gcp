@@ -121,7 +121,7 @@ func getServiceAccount(ctx context.Context, c client.Client, bastion *v1alpha1.B
 }
 
 func createGCPClient(ctx context.Context, serviceAccount *gcp.ServiceAccount) (gcpclient.Interface, error) {
-	return gcpclient.NewFromServiceAccount(ctx, serviceAccount.Raw)
+	return gcpclient.NewFromServiceAccount(ctx, serviceAccount)
 }
 
 func getWorkersCIDR(cluster *controller.Cluster) (string, error) {

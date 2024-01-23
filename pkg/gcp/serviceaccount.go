@@ -78,7 +78,7 @@ func GetServiceAccountFromJSON(data, token []byte) (*ServiceAccount, error) {
 		Email             string           `json:"client_email"`
 		Type              string           `json:"type"`
 		ImpersonationURL  string           `json:"service_account_impersonation_url"`
-		CredentialsSource credentialSource `json:"credentials_source"`
+		CredentialsSource credentialSource `json:"credential_source"`
 	}
 
 	if err := json.Unmarshal(data, &serviceAccount); err != nil {

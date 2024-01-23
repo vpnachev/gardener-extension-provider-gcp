@@ -18,6 +18,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"golang.org/x/oauth2"
@@ -97,9 +98,16 @@ func NewComputeClient(ctx context.Context, serviceAccount *gcp.ServiceAccount) (
 	// 3. patch "credential_source.file" with the path to this token
 
 	if serviceAccount.TokenFilePath != "" {
-		os.WriteFile(serviceAccount.TokenFilePath, serviceAccount.Token, os.ModeAppend)
+		if err := os.MkdirAll(filepath.Dir(serviceAccount.TokenFilePath), 0700); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(serviceAccount.TokenFilePath, serviceAccount.Token, os.ModeAppend); err != nil {
+			return nil, err
+		}
 	}
-	creds, err := google.CredentialsFromJSONWithParams(ctx, serviceAccount.Raw, google.CredentialsParams{})
+	creds, err := google.CredentialsFromJSONWithParams(ctx, serviceAccount.Raw, google.CredentialsParams{
+		Scopes: []string{compute.CloudPlatformScope},
+	})
 	if err != nil {
 		return nil, err
 	}

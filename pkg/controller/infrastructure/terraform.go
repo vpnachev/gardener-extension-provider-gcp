@@ -137,7 +137,7 @@ func (t *TerraformReconciler) Delete(ctx context.Context, log logr.Logger, _ *ex
 		return err
 	}
 
-	gcpClient, err := gcpclient.NewFromServiceAccount(ctx, serviceAccount.Raw)
+	gcpClient, err := gcpclient.NewFromServiceAccount(ctx, serviceAccount)
 	if err != nil {
 		return util.DetermineError(err, helper.KnownCodes)
 	}

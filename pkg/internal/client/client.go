@@ -16,12 +16,16 @@ package gcp
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
+
+	"github.com/gardener/gardener-extension-provider-gcp/pkg/gcp"
 )
 
 type client struct {
@@ -103,13 +107,29 @@ type imagesListCall struct {
 }
 
 // NewFromServiceAccount creates a new client from the given service account.
-func NewFromServiceAccount(ctx context.Context, serviceAccount []byte) (Interface, error) {
-	jwt, err := google.JWTConfigFromJSON(serviceAccount, compute.CloudPlatformScope)
+func NewFromServiceAccount(ctx context.Context, serviceAccount *gcp.ServiceAccount) (Interface, error) {
+	// TODO(vpnachev): need to
+	// 1. create a temporary file
+	// 2. dump the token in this file
+	// 3. patch "credential_source.file" with the path to this token
+
+	if serviceAccount.TokenFilePath != "" {
+		if err := os.MkdirAll(filepath.Dir(serviceAccount.TokenFilePath), 0700); err != nil {
+			return nil, err
+		}
+
+		if err := os.WriteFile(serviceAccount.TokenFilePath, serviceAccount.Token, os.ModeAppend); err != nil {
+			return nil, err
+		}
+	}
+	creds, err := google.CredentialsFromJSONWithParams(ctx, serviceAccount.Raw, google.CredentialsParams{
+		Scopes: []string{compute.CloudPlatformScope},
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	httpClient := oauth2.NewClient(ctx, jwt.TokenSource(ctx))
+	httpClient := oauth2.NewClient(ctx, creds.TokenSource)
 	service, err := compute.NewService(ctx, option.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, err
