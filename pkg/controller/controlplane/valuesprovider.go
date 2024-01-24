@@ -132,6 +132,7 @@ var (
 					{Type: &appsv1.Deployment{}, Name: "cloud-controller-manager"},
 					{Type: &corev1.ConfigMap{}, Name: "cloud-controller-manager-observability-config"},
 					{Type: &autoscalingv1.VerticalPodAutoscaler{}, Name: "cloud-controller-manager-vpa"},
+					{Type: &networkingv1.NetworkPolicy{}, Name: "allow-egress-from-kube-apiserver-to-quic-tunnel"},
 				},
 			},
 			{
